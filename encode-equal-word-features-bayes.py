@@ -43,7 +43,6 @@ def classify(text):
     Hillary Clinton's twitter (versus on Donald Trump's).
     """
     p = cl.prob_classify(getDict(text))
-    print(p.prob('C'))
     return p.prob('C')
 
 
@@ -77,4 +76,4 @@ for t in texts:
 
 #append probabilities to input tsv
 data['probabilityClinton'] = probs
-data.to_csv(sys.argv[1], index=False, sep="\t", doublequote=False)
+data.to_csv(sys.argv[1], index=False, sep="\t", doublequote=False, escapechar="\\")
