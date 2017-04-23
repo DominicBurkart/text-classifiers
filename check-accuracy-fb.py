@@ -6,9 +6,11 @@ USAGE:
 1.) make sure that the current directory is the folder that contains this
 file and the other bayes encoding files in this suite.
 
-2.) enter the command "python3 encode-equal-word-features-bayes.py path/to/input.tsv",
+2.) enter the command "python3 check-accuracy-fb.py path/to/input.tsv",
 where path/to/input.tsv is replaced with the path to the text to be encoded.
 If the filepath includes spaces, you need to put it in quotes (path/to/input.tsv vs "path/to/in put.tsv").
+
+
 
 Dominic Burkart dominicburkart@nyu.edu
 """
@@ -76,14 +78,18 @@ with open(file_path, 'rb') as f_in:
 cl = pickle.loads(bytes_in)
 
 #calculate probabilities
-texts = list(data.comment)
+texts = list(set(list((data.post))))
 probs = []
 for t in texts:
     probs.append(classify(t))
 
-#append probabilities to input tsv
-data['probabilityClinton'] = probs
-if is_tsv:
-    data.to_csv(sys.argv[1], index=False, sep="\t", doublequote=False, escapechar="\\")
-else:
-    data.to_csv(sys.argv[1], index=False, escapechar="\\")
+print("average probability clinton: "+str(sum(probs)/len(probs)))
+
+above = 0
+for p in probs:
+    if p > 0.5:
+        above = above + 1
+
+print("number categorized as clinton: "+str(above/len(probs))) 
+
+print(set(list(data.post_author))) #confirm that only Donald Trump wrote posts in data
