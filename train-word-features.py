@@ -34,13 +34,13 @@ def getFeatureSet(twoples):
         out.append((d, t[1])) #appends a tuple with the dictionary object and the category to the out list
     return out #we have our feature set! send it out.
 
-fr = concat([read_table('train1.tsv'), read_table('train2.tsv'), read_table('train3.tsv')])
+fr = concat([read_table('clinton_fb_post_comments_ordered.csv'), read_table('trump_fb_post_comments_ordered.csv')])
 
-full = [(x, y) for x,y in zip(list(fr.text), list(fr.cand))]
+full = [(x, y) for x,y in zip(list(fr.post), list(fr.post_author))]
 random.seed(405968) #explicitly set for reproducibility
 random.shuffle(full) #shuffles all documents to avoid order effects
-train = getFeatureSet(full[:int(len(full)/2)]) #gets features from half of the documents
-test = getFeatureSet(full[int(len(full)/2):]) #gets features from the other half
+train = getFeatureSet(full[:int(len(full)*0.8)]) #gets features from half of the documents
+test = getFeatureSet(full[int(len(full)*0.8):]) #gets features from the remaining 20%
 
 cl = nltk.NaiveBayesClassifier.train(train)
 print("Classifier accuracy: "+str(nltk.classify.accuracy(cl, test)))
