@@ -19,11 +19,12 @@ import random
 import re
 
 import nltk
+from sklearn.svm import LinearSVC
 from pandas import *
 
 _input_file_ = "imagination_exp2_text.csv"
 
-local = True
+local = False
 verbose = False
 
 
@@ -75,7 +76,8 @@ def classify_by(iv, dv, outname="classifier.obj", train_ratio=0.8, show_feat=Fal
     train = getFeatureSet(full[:spliti])
     test = getFeatureSet(full[spliti:])
 
-    cl = nltk.NaiveBayesClassifier.train(train)
+    cl = nltk.classify.scikitlearn.SklearnClassifier(LinearSVC())
+    cl = cl.train(train)
     print("Classifier accuracy: " + str(nltk.classify.accuracy(cl, test)))
     if show_feat:
         cl.show_most_informative_features(n=100)
@@ -174,9 +176,10 @@ def leave_one_out(iv, dv, name=None, show_feat=False, hyp_test=True, show_graph=
     for iout in range(len(full)):
         featset = getFeatureSet([full[i] for i in range(len(full)) if i != iout])
         test = getFeatureSet([full[iout]])
-        cl = nltk.NaiveBayesClassifier.train(featset)
+        cl = nltk.classify.scikitlearn.SklearnClassifier(LinearSVC())
+        cl = cl.train(featset)
         if len(test) != 0:
-            result = 1 if cl.classify(test[0][0]) == test[0][1] else 0  # correct or false
+            result = 1 if cl.classify(test[0][0]) == test[0][1] else 0  # correct (1) or false (0)
             v.append(result)
             if show_feat:
                 cl.show_most_informative_features(n=100)
@@ -208,13 +211,21 @@ def leave_one_out(iv, dv, name=None, show_feat=False, hyp_test=True, show_graph=
 if __name__ == "__main__":
     fr = read_csv(_input_file_)
 
+    columns = [fr.spatial, fr.social, fr.hypothetical, fr.control,fr.temporal]
+    flattened = []
+    for s in columns:
+        flattened.extend(s)
+    flattened = DataFrame({"text" : flattened, "group":list(fr.group)*len(columns)})
+
+
     if local:
         l = [
-            leave_one_out(fr.spatial, fr.group, "spatial_loo"),
-            leave_one_out(fr.social, fr.group, "social_loo"),
-            leave_one_out(fr.hypothetical, fr.group, "hypothetical_loo"),
-            leave_one_out(fr.control, fr.group, "control_loo"),
-            leave_one_out(fr.temporal, fr.group, "temporal_loo")
+            leave_one_out(fr.spatial, fr.group, "spatial_loo_svm"),
+            leave_one_out(fr.social, fr.group, "social_loo_svm"),
+            leave_one_out(fr.hypothetical, fr.group, "hypothetical_loo_svm"),
+            leave_one_out(fr.control, fr.group, "control_loo_svm"),
+            leave_one_out(fr.temporal, fr.group, "temporal_loo_svm"),
+            leave_one_out(flattened.text, flattened.group, "all_loo_svm")
         ]
         print(l)
         df = DataFrame(l)
@@ -222,9 +233,10 @@ if __name__ == "__main__":
     else:
         import sbatch
 
-        sbatch.load("leave_one_out", [fr.temporal, fr.group, "temporal_loo"])
-        sbatch.load("leave_one_out", [fr.spatial, fr.group, "spatial_loo"])
-        sbatch.load("leave_one_out", [fr.social, fr.group, "social_loo"])
-        sbatch.load("leave_one_out", [fr.hypothetical, fr.group, "hypothetical_loo"])
-        sbatch.load("leave_one_out", [fr.control, fr.group, "control_loo"])
+        sbatch.load("leave_one_out", [fr.temporal, fr.group, "temporal_loo_svm"])
+        sbatch.load("leave_one_out", [fr.spatial, fr.group, "spatial_loo_svm"])
+        sbatch.load("leave_one_out", [fr.social, fr.group, "social_loo_svm"])
+        sbatch.load("leave_one_out", [fr.hypothetical, fr.group, "hypothetical_loo_svm"])
+        sbatch.load("leave_one_out", [fr.control, fr.group, "control_loo_svm"])
+        sbatch.load("leave_one_out", [flattened.text, flattened.group, "all_loo_svm"])
         sbatch.launch()
