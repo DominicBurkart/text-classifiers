@@ -22,7 +22,7 @@ import nltk
 from pandas import *
 from sklearn.naive_bayes import MultinomialNB
 
-_input_file_ = "imagination_exp2_text.csv"
+_input_file_ = "~/Documents/princeton/imagination/exps_2_and_3_text.csv"
 
 local = False
 verbose = False
@@ -56,7 +56,7 @@ def getFeatureSet(twoples):
     return out  # we have our feature set! send it out.
 
 
-def hypt(accuracy, source_iv, source_dv, target_iv, target_dv, perms=2, show_graph=True, name="decode",
+def hypt(accuracy, source_iv, source_dv, target_iv, target_dv, perms=10000, show_graph=True, name="decode",
          print_progress=True, multiprocess=True, save_perm_accuracies=True):
     '''
     Tests whether classifiers are performing significantly better than chance cross-domain.
@@ -134,7 +134,8 @@ def hypt(accuracy, source_iv, source_dv, target_iv, target_dv, perms=2, show_gra
 def cross_decode(source_iv, source_dv, target_iv, target_dv, name=None,
                  show_feat=False, hyp_test=True, show_graph=False, write_out=True):
     '''
-    Leave one out cross-validated classification.
+    Leave one out cross-validated classification across dimensions. This means that we're testing in a different
+    dimension and with a left-out participant.
 
     :param iv:
     :param dv:
@@ -150,9 +151,10 @@ def cross_decode(source_iv, source_dv, target_iv, target_dv, name=None,
     target_full = [(x, y) for x, y in zip(list(target_iv), list(target_dv))]
     assert len(target_full) == len(source_full)
 
-    for iout in range(len(full)):
-        featset = getFeatureSet([source_iv[i] for i in range(len(source_iv)) if i != iout])
-        test = getFeatureSet([testi[iout]])
+    v = []
+    for iout in range(len(source_full)):
+        featset = getFeatureSet([source_full[i] for i in range(len(source_full)) if i != iout])
+        test = getFeatureSet([target_full[iout]])
         cl = nltk.classify.scikitlearn.SklearnClassifier(MultinomialNB()).train(featset)
         if len(test) != 0:
             result = 1 if cl.classify(test[0][0]) == test[0][1] else 0  # correct (1) or false (0)
@@ -168,7 +170,8 @@ def cross_decode(source_iv, source_dv, target_iv, target_dv, name=None,
             out = {"accuracy": a, "null probability": hypt(a, iv, dv, show_graph=show_graph)}
         else:
             out = {"accuracy": a,
-                   "null probability": hypt(a, iv, dv, name=name, show_graph=show_graph),
+                   "null probability": hypt(a, source_iv, source_dv, target_iv, target_dv,
+                                            name=name, show_graph=show_graph),
                    "name": name}
     else:
         if name is None:
@@ -212,13 +215,14 @@ if __name__ == "__main__":
         outs = []
         for i1 in range(len(dims)):
             for i2 in range(len(dims)):
-                outs.append(cross_decode(i1, fr.group, i2, fr.group, names[i1] + "_to_" + names[i2]))
-        df = DataFrame(l)
+                outs.append(cross_decode(dims[i1], fr.group, dims[i2], fr.group, names[i1] + "_to_" + names[i2]))
+        df = DataFrame(outs)
         df.to_csv("cross_encoding_performance.csv")
     else:
+        import sbatch
         for i1 in range(len(dims)):
             for i2 in range(len(dims)):
-                sbatch.load("cross_decode", [i1, fr.group, i2, fr.group, names[i1] + "_to_" + names[i2]])
+                sbatch.load("cross_decode", [dims[i1], fr.group, dims[i2], fr.group, names[i1] + "_to_" + names[i2]])
         sbatch.launch()
         print("jobs submitted to the cluster. Run the collation scripts when they're done!")
 
