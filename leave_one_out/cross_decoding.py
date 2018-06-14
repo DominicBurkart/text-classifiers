@@ -102,6 +102,7 @@ def hypt(accuracy, source_iv, source_dv, target_iv, target_dv, perms=10000, show
             for r in resps:
                 r.wait()
             null_accuracy = [d['accuracy'] for d in out_dicts]
+        print("Multiprocessing complete.")
     else:
         for i in range(perms):
             reindex = np.array(np.random.shuffle(range(len(source_iv))))
