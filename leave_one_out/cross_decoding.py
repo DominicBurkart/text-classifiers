@@ -19,10 +19,12 @@ import random
 import re
 
 import nltk
+import scipy
 from pandas import *
+from functools import reduce
 from sklearn.naive_bayes import MultinomialNB
 
-_input_file_ = "~/Documents/princeton/imagination/exps_2_and_3_text.csv"
+input_file = "~/Documents/princeton/imagination/exps_2_and_3_text.csv"
 
 local = False
 verbose = False
@@ -102,7 +104,6 @@ def hypt(accuracy, source_iv, source_dv, target_iv, target_dv, perms=10000, show
             for r in resps:
                 r.wait()
             null_accuracy = [d['accuracy'] for d in out_dicts]
-        print("Multiprocessing complete.")
     else:
         for i in range(perms):
             reindex = np.array(np.random.shuffle(range(len(source_iv))))
@@ -187,8 +188,83 @@ def cross_decode(source_iv, source_dv, target_iv, target_dv, name=None,
             DataFrame([out]).to_csv(name + ".csv")
     return out
 
+def get_shared_features(dimensions, names, grouping, across=False, all=True):
+    '''
+
+    :param dimensions:
+    :param names:
+    :param grouping: iterable grouping variable values
+    :param across: set to true to include only features pulled from all dimensions.
+    :param all:  set to false to return only the top 100 features of each classifier.
+    :return:
+    '''
+    import pandas as pd
+
+    dfs = []
+    maximum_weights = []
+    for i in range(len(dimensions)):
+        featset = getFeatureSet(zip(dimensions[i], grouping))
+        cl = nltk.classify.scikitlearn.SklearnClassifier(MultinomialNB()).train(featset)
+        feature_names = cl._vectorizer.get_feature_names()
+
+        if all:
+            dfs.append(pd.DataFrame.from_records(
+                [(feature_names[i], cl._clf.coef_[0][i]) for l in [np.argsort(cl._clf.coef_[0])] for i in l],
+                columns=["feature", names[i] + " weight"]))
+        else:
+            dfs.append(pd.DataFrame.from_records(
+                [(feature_names[i], cl._clf.coef_[0][i]) for l in [np.argsort(cl._clf.coef_[0][:100])] for i in l],
+                columns=["feature", names[i] + " weight"]))
+        maximum_weights.append(max(cl._clf.coef_[0]))
+    if across:
+        df = reduce(lambda left, right: pd.merge(left, right, on='feature', how="inner"), dfs)
+    else:
+        df = reduce(lambda left, right: pd.merge(left, right, on='feature', how="outer"), dfs)
+    if max(maximum_weights) < 0:
+        print("No positive weights.")
+    else:
+        print("Positive weights detected.")
+    return df
+
+
+def lower_level_feature_comparison(dims, names, group):
+    '''
+    incomplete.
+    '''
+    unique_d = {}
+    sums_d = {}
+    for flist, name in ((getFeatureSet(zip(dims[i], group)), names[i]) for i in range(len(dims))):
+        uniques = []
+        sums = []
+        for tup in flist:
+            keys = list(tup[0].keys())
+            uniques.append(len(keys))
+            sums.append(sum(tup[0][k] for k in keys))
+        unique_d[name] = uniques
+        sums_d[name] = sums
+
+    collapse_unique = [v for n in names for v in unique_d[n]]
+    collapse_sum = [v for n in names for v in sums_d[n]]
+    collapse_group = list(group) * len(dims)
+    print(len(collapse_group))
+    print(len(collapse_sum))
+    print(len(collapse_unique))
+    assert len(collapse_group) == len(collapse_sum) and len(collapse_sum) == len(collapse_unique) # currently fails.
+
+    controls_i = [i for i in range(len(collapse_group)) if collapse_group[i] == "control"]
+    creatives_i = [i for i in range(len(collapse_group)) if collapse_group[i] == "creative"]
+    assert len(creatives_i) > 0
+    assert len(controls_i) > 0
+
+
+    unique_test = scipy.stats.ttest_ind([collapse_unique[i] for i in creatives_i], [collapse_unique[i] for i in controls_i])
+    print("Unique: "+str(unique_test))
+
+    sum_test = scipy.stats.ttest_ind([collapse_sum[i] for i in creatives_i], [collapse_sum[i] for i in controls_i])
+    print("Sum: " + str(sum_test))
+
 if __name__ == "__main__":
-    fr = read_csv(_input_file_)
+    fr = read_csv(input_file)
 
     columns = [fr.spatial, fr.social, fr.hypothetical, fr.control, fr.temporal]
     flattened = []
@@ -211,6 +287,9 @@ if __name__ == "__main__":
         "control",
         "temporal"
     ]
+
+    get_shared_features(dims, names, fr.group).to_csv("features_for_each_domain.csv")
+    get_shared_features(dims, names, fr.group, across=True).to_csv("shared_features.csv")
 
     if local:
         outs = []
