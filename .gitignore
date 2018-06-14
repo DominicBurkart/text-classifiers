@@ -3,3 +3,4 @@
 
 *.obj
 leave_one_out/sbatch.py
+*.pyc
